@@ -13,4 +13,7 @@ adb shell chmod 777 /home/linaro/optical_flow/ov-opticflow
 adb shell sync
 adb shell sync
 
-adb reboot
+adb shell sync
+adb shell sync
+
+adb reboot -f warm
