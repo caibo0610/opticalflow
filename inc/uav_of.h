@@ -16,6 +16,8 @@
 #define RAD_RECORD_MAX  12
 #define VELOCITY_FILTER 0.3f
 
+#define FILTERIMG_COEFFICIENT 0.2f
+
 //#define USE_NEON
 
 #ifdef __cplusplus

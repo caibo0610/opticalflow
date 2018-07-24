@@ -14,7 +14,7 @@
 #include "type.h"
 #include "lkp.h"
 
-//#define OPENCV_FLOW
+#define OPENCV_FLOW
 
 #define XFREE(x) ({\
 	if(x != NULL) {\

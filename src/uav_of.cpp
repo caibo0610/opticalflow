@@ -3,7 +3,7 @@
   filename:   ggf
   file ext:  c
   author:  Fu Chongyang
-  purpose:  使用光流算法跟踪图像移动
+  purpose:  浣跨敤鍏夋祦绠楁硶璺熻釜鍥惧儚绉诲姩
 *********************************************************************/
 #include <stdlib.h>
 #include <stdio.h>
@@ -81,6 +81,7 @@ extern uint64_t timestamp[2];
 static void initGloabData();
 static void fillFlowBuffer(U8 *imageData, ParamB* _PB);
 static void parseCalibFile();
+static int  OpticalFlow_Confidence_Filter(int _input);
 static void FTrack(U8 *pre, U8 *cur,ParamA* PA,ParamB* PB);
 extern int get_adsp_srf_distance(float *distance);
 extern int send_optiflow_data(int32_t flag,float vx,float vy, float height, float orgvx, float orgvy, int confidence);
@@ -121,7 +122,7 @@ S32 initialzeOpticalFlow()
 	int field_angle = 153;//
 	//float focal_len = 0.83;//1.657;//1.64
 
-    /* 建立socket*/
+    /* 寤虹珛socket*/
     if((PA.sock = socket(AF_INET,SOCK_DGRAM,0))<0)
     {  
         perror("socket"); 
@@ -168,15 +169,16 @@ S32 initialzeOpticalFlow()
 	//init_ZeroTech_UAV_SDK();
 	//enable_action_control_cmd_to_ZeroTech_UAV_SDK();
 
-	if(flow_buffer != NULL) {
-		flow_buffer->nframe = 0;
-		flow_buffer->frame_interval = 0;
-		flow_buffer->height = 0;
-		flow_buffer->radvx = 0;
-		flow_buffer->radvy = 0;
-		flow_buffer->radvz = 0;
-		memset(flow_buffer->data, 0, USB_PREVIEW_W*USB_PREVIEW_H);
-	}
+	if(flow_buffer == NULL)
+		flow_buffer = (struct Flow_buffer *)malloc(sizeof(struct Flow_buffer));
+
+	flow_buffer->nframe = 0;
+	flow_buffer->frame_interval = 0;
+	flow_buffer->height = 0;
+	flow_buffer->radvx = 0;
+	flow_buffer->radvy = 0;
+	flow_buffer->radvz = 0;
+	memset(flow_buffer->data, 0, USB_PREVIEW_W*USB_PREVIEW_H);
 
     return OF_SUCCESS;
 
@@ -226,7 +228,7 @@ U32 select_matched_data(void)
 /**/
 void velocity_comp(float *comp_x,float *comp_y,float *dz)
 {
-	//基于旋转中心进行补偿
+	//鍩轰簬鏃嬭浆涓績杩涜琛ュ伩
 	float compx = *comp_x;
 	float compy = *comp_y;
 	float radvz = *dz;
@@ -293,6 +295,8 @@ void sendResult(float pixelx, float pixely, unsigned long tvdiff,unsigned long t
 {
     int ret = 0;
     float height;
+
+    int printf_flag = 0;
 	
     //float dx,dy;
     float vx = 0.0,vy = 0.0;
@@ -302,6 +306,7 @@ void sendResult(float pixelx, float pixely, unsigned long tvdiff,unsigned long t
     float tmp,tmp1;
 	
     int32_t flag = 1;
+    int32_t filter_flag = 0;
     const float radfactor = (3.141593)/180;
 	const float COE = 0.017453;
     float dis_per_pixel_per_height = PB.dis_per_pixel_per_height;
@@ -322,8 +327,9 @@ void sendResult(float pixelx, float pixely, unsigned long tvdiff,unsigned long t
     }
 
     if (PB.xgd > 0)
-        {flag = (int)round(PB.xgd * 255);
-	    }
+    {
+    	flag = (int)round(PB.xgd * 255);
+	}
     else
         flag = 0;
 
@@ -333,8 +339,8 @@ void sendResult(float pixelx, float pixely, unsigned long tvdiff,unsigned long t
     radvy = tmp * PB.fcpara[current_rad_index].radvy;
 	radvz =  COE * PB.fcpara[current_rad_index].radvz;
 
-     if ((pixelx<60)&&(pixelx>-60)&&(pixely<60)&&(pixely>-60)&&(frame_interval>0)&&(frame_interval<1000*1000))
-     {
+    if ((pixelx<60)&&(pixelx>-60)&&(pixely<60)&&(pixely>-60)&&(frame_interval>0)&&(frame_interval<1000*1000))
+    {
 	   flag=flag;
     }
     else
@@ -358,7 +364,7 @@ void sendResult(float pixelx, float pixely, unsigned long tvdiff,unsigned long t
 
 		if(PB.rotflag)
 		{
-		//基于旋转中心进行速度补偿
+		//鍩轰簬鏃嬭浆涓績杩涜閫熷害琛ュ伩
 			if(g_data.ctrl[CTRL_MODE] == 1)
        			velocity_comp(&compx,&compy,&radvz);
 		}
@@ -367,6 +373,12 @@ void sendResult(float pixelx, float pixely, unsigned long tvdiff,unsigned long t
     	{
         	flag = 0;
     	}
+
+    	printf_flag = flag;
+
+    	filter_flag = OpticalFlow_Confidence_Filter(flag);
+
+    	flag = filter_flag;
 
         PB.v_comp.x = compx;
         PB.v_comp.y = compy;
@@ -385,6 +397,10 @@ void sendResult(float pixelx, float pixely, unsigned long tvdiff,unsigned long t
         vx = 0;   //unit m/s
         vy = 0;   //unit: m/s
         flag = 0;
+
+        printf_flag = flag;
+        filter_flag = OpticalFlow_Confidence_Filter(flag);
+        flag = filter_flag;
 
         ret = send_optiflow_data(flag,vx,vy,height,radvx,radvy,PB.maxeig);
         if (ret)
@@ -446,7 +462,9 @@ void sendResult(float pixelx, float pixely, unsigned long tvdiff,unsigned long t
 				            //<< "credibility_flag" << "\t" << "flow_vx_filtered" << "\t" << "flow_vy_filtered" << "\t"
 				            //<< "vx_flight" << "\t" << "vy_flight" << "\t" << "vz_flight" << "\t"
 							<< "dis_per_pixel_per_height" << "\t"
-							<< "feature_point" << "\t" << "xgd" << "\t" << "PB.maxeig" << std::endl;
+							<< "feature_point" << "\t" << "xgd" << "\t" << "PB.maxeig" << "\t"
+							<< "flag" << "\t" << "filter_flag" << "\t"
+							<< std::endl;
 		
 				std::cout << "Open the log file successfully!" << std::endl 
 					  << "Please waiting for the end of the algorithm..." << std::endl;
@@ -464,7 +482,9 @@ void sendResult(float pixelx, float pixely, unsigned long tvdiff,unsigned long t
 								//<< PB.credibility_flag << "\t" << flow_vx_filtered << "\t" << flow_vy_filtered << "\t"
 								//<< vx_flight << "\t" << vy_flight << "\t" << vz_flight << "\t"
 								<< dis_per_pixel_per_height << "\t"
-								<< *(PB.nump) << "\t" << PB.xgd << "\t" << PB.maxeig << std::endl;      
+								<< *(PB.nump) << "\t" << PB.xgd << "\t" << PB.maxeig << "\t"
+								<< printf_flag << "\t" << filter_flag << "\t"
+								<< std::endl;      
 			} else {
 				std::cout << "Error opening file" << std::endl; 	
 				return;
@@ -485,7 +505,7 @@ void FTrack(U8 *pre, U8 *cur,ParamA* PA,ParamB* PB)
 {
     PB->nframe++;
     //S32 i;
-	struct timeval t1, t2, t7, t8;
+	//struct timeval t1, t2, t7, t8;
 
 	if(flow_buffer != NULL)
 		fillFlowBuffer(pre, PB);
@@ -524,10 +544,10 @@ void FTrack(U8 *pre, U8 *cur,ParamA* PA,ParamB* PB)
         if (rotation_plus >= 1 || rotation_minus >= 1)
         {
         	const float COE = 0.017453; // = 2pi/360 = 0.017453
-        	gettimeofday(&t1,NULL);
+        	//gettimeofday(&t1,NULL);
 			img_rotation_coord_opti_comp(pre, (imgtype1 *)PA->mineig, COE * PB->rotation_angle,PB->height1);
-			gettimeofday(&t2,NULL);
-			ERROR("chenyijun:img_rotation_coord_opti_comp cost time = %ld us\n", 1000000 * (t2.tv_sec - t1.tv_sec) + (t2.tv_usec - t1.tv_usec));
+			//gettimeofday(&t2,NULL);
+			//ERROR("chenyijun:img_rotation_coord_opti_comp cost time = %ld us\n", 1000000 * (t2.tv_sec - t1.tv_sec) + (t2.tv_usec - t1.tv_usec));
 
             CutImg((imgtype1 *)PA->mineig,PB->prevImg,USB_PREVIEW_W,USB_PREVIEW_H);
             PB->rotflag = 1;//for log
@@ -562,12 +582,12 @@ void FTrack(U8 *pre, U8 *cur,ParamA* PA,ParamB* PB)
 #ifdef OPENCV_FLOW
 	compute_flow_opencv(pre_img, cur_img, PA, PB);
 #else
-	struct timeval t3, t4, t5, t6;
-	gettimeofday(&t3, NULL);
+	//struct timeval t3, t4, t5, t6;
+	//gettimeofday(&t3, NULL);
 	GetGoodfeature(PA, PB); //find feature point
-	gettimeofday(&t4, NULL);
-	ERROR("chenyijun:GetGoodfeature cost time = %ld us, point num = %d\n", 
-		1000000 * (t4.tv_sec - t3.tv_sec) + (t4.tv_usec - t3.tv_usec), *(PB->nump));
+	//gettimeofday(&t4, NULL);
+	//ERROR("chenyijun:GetGoodfeature cost time = %ld us, point num = %d\n", 
+		//1000000 * (t4.tv_sec - t3.tv_sec) + (t4.tv_usec - t3.tv_usec), *(PB->nump));
 
     for (int i = 0; i < (*(PB->nump)); i++)
     {
@@ -579,35 +599,28 @@ void FTrack(U8 *pre, U8 *cur,ParamA* PA,ParamB* PB)
     }
 
 	//LK pyramid algo
-	gettimeofday(&t5,NULL);
+	//gettimeofday(&t5,NULL);
     UseLKP(PA,PB);
-	gettimeofday(&t6,NULL);
-	int goodPoints=0;
-    for (int i = 0; i < (*(PB->nump)); i++)
-    {
-    	if(PB->status[i] == 1)
-        	goodPoints++;
-    }
+	//gettimeofday(&t6,NULL);
 
-	ERROR("chenyijun:UseLKP cost time = %ld us, tracked point num = %d\n", 
-		1000000 * (t6.tv_sec - t5.tv_sec) + (t6.tv_usec - t5.tv_usec), goodPoints);
+	//ERROR("chenyijun:UseLKP cost time = %ld us\n", 
+		//1000000 * (t6.tv_sec - t5.tv_sec) + (t6.tv_usec - t5.tv_usec));
 #endif
 
 	//filter feature point
-	gettimeofday(&t7,NULL);
+	//gettimeofday(&t7,NULL);
 	GetRightPoint3(PB);
-	gettimeofday(&t8,NULL);
-	ERROR("chenyijun:nframe = %d, GetRightPoint3 cost time = %ld us, after filter, point num = %d\n", PB->nframe,
-		1000000 * (t8.tv_sec - t7.tv_sec) + (t8.tv_usec - t7.tv_usec), *(PB->nump));
+	//gettimeofday(&t8,NULL);
+	//ERROR("chenyijun:nframe = %d, GetRightPoint3 cost time = %ld us, after filter, point num = %d\n", PB->nframe,
+		//1000000 * (t8.tv_sec - t7.tv_sec) + (t8.tv_usec - t7.tv_usec), *(PB->nump));
 
     //get the confidence level
     getzxd(PA,PB);
 
 	if((1 == g_data.ctrl[CTRL_SAVE_VIDEO])
-		//&& (PB->nframe >= 3000)
 		&& (PB->nframe < 60000)){
 //************************ print feature point onto image **************************
-		cv::Mat preImg(cv::Size(USB_PREVIEW_W/2, USB_PREVIEW_H/2), CV_8U, PB->prevImg);
+/*		cv::Mat preImg(cv::Size(USB_PREVIEW_W/2, USB_PREVIEW_H/2), CV_8U, PB->prevImg);
 		cv::Mat curImg(cv::Size(USB_PREVIEW_W/2, USB_PREVIEW_H/2), CV_8U, PB->nextImg);
 		cv::Point2f detect_point;
 		cv::Point2f match_point;
@@ -625,7 +638,7 @@ void FTrack(U8 *pre, U8 *cur,ParamA* PA,ParamB* PB)
 				cv::circle(preImg, detect_point, 2, cv::Scalar(255, 255, 255));
 				cv::circle(curImg, match_point, 2, cv::Scalar(255, 255, 255));
 			}
-		}
+		}*/
 //*********************** print feature point onto image ***************************/
 		static uint8_t frameSaveFlag = 0;
 		static int fileIndex = 0;
@@ -652,11 +665,11 @@ void FTrack(U8 *pre, U8 *cur,ParamA* PA,ParamB* PB)
 			frameSaveFlag = 1;
 		}
 		if(access( fname_prev, 0 ) == 0) {
-			fwrite(preImg.data, sizeof(imgtype1)*USB_PREVIEW_W*USB_PREVIEW_H/4, 1, file_prev);
+			fwrite(PB->prevImg, sizeof(imgtype1)*USB_PREVIEW_W*USB_PREVIEW_H/4, 1, file_prev);
 			fflush(file_prev);
 		}
 		if(access( fname_next, 0 ) == 0){
-			fwrite(curImg.data, sizeof(imgtype1)*USB_PREVIEW_W*USB_PREVIEW_H/4, 1, file_next);
+			fwrite(PB->nextImg, sizeof(imgtype1)*USB_PREVIEW_W*USB_PREVIEW_H/4, 1, file_next);
 			fflush(file_next);
 		}
 	}
@@ -931,3 +944,52 @@ void fillFlowBuffer(U8 *imageData, ParamB* _PB)
 	memcpy((U8*)flow_buffer->data, (U8*)imageData, USB_PREVIEW_W*USB_PREVIEW_H);
 }
 
+
+/**********************************************************************
+// Method:  OpticalFlow_Confidence_Filter
+// Function:  Filtering the confidence in current opticalflow result for flight control 
+// Parameter: 
+//			int _input  -- raw confidence
+// returns: int         -- processed confidence
+// Date:    2018/7/6
+// author:  caibo
+**********************************************************************/
+#ifdef BLOWPASS
+int OpticalFlow_Confidence_Filter(int _input)
+{
+	static int flag_continue_cnt = 0;
+	if(flag_continue_cnt > 1000)
+	{
+		flag_continue_cnt = 30;
+	}
+
+	if(_input > 200)
+	{
+		flag_continue_cnt ++;
+	}
+	else
+	{
+		flag_continue_cnt = 0;
+	}
+
+	if(flag_continue_cnt > 30)
+	{
+		return _input;
+	}
+	else
+	{
+		return 0;
+	}
+	
+}
+#else
+int OpticalFlow_Confidence_Filter(int _input)
+{
+	static float output_pre = 0.0f;
+
+	output_pre = (1 - FILTERIMG_COEFFICIENT) * output_pre + FILTERIMG_COEFFICIENT * _input;
+
+	return output_pre;
+	
+}
+#endif

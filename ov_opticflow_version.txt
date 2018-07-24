@@ -1,5 +1,5 @@
-ov_opticflow_version= 1.9.21
-modify_time=20171103
-普宙_鱼眼camera，优化旋转，优化曝光
+ov_opticflow_version= 1.9.22
+modify_time=20180530
+普宙_鱼眼camera，优化光流进程的CPU占用率40%-->30%
 
 

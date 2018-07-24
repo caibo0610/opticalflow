@@ -5,7 +5,6 @@ float distortion_coeffs_vec[4] = {0.053806942095731204f,-0.088103822806196011f,-
 //float intrinsic_vec[9] = { 141.988f,0.0,156.722,0.0,142.495,120.713,0.0,0.0,1.0 };
 //float distortion_coeffs_vec[4] = {0.00832156,-0.0161815,-0.0111732,0.0234787};
 
-
 DistortionCalibrator::DistortionCalibrator(int _w, int _h)
 {
 	

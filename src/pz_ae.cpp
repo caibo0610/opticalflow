@@ -2,7 +2,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
-
 #include "pz_ae.h"
 
 #define max(a,b) (((a) > (b)) ? (a) : (b))
@@ -33,7 +32,7 @@ struct Exposure_table_type exposure_table =
 		{	285 ,	5	},//	1.113 
 		{	261 ,	6	},//	1.020 
 		{	287 ,	6	},//	1.121 
-		{	271 ,	7	},//	1.059 
+		{	271 ,	7	},//	1.059 //12
 		{	260 ,	8	},//	1.016 
 		{	287 ,	8	},//	1.121 
 		{	280 ,	9	},//	1.094 
@@ -179,15 +178,15 @@ int calc_exposure_step_size_slow(Ae_t *aeCtrl, Chromatix_ae_type *aeParams)
 	float speed = 1.0;
 	int exposure_step_size_lut[2][14] = {
 											{-22, -18, -14, -10, -6, -3, -1, 0, 1, 3, 8, 12, 16, 20},//fast
-											{-14, -10,  -8,  -7, -4, -2, -1, 0, 1, 2, 4,  6,  9, 13}//slow
+											{-13, -11,  -9,  -7, -5, -3, -2, 0, 1, 2, 4,  6,  8, 11}//slow
 										};
 	unsigned int bright_torance = 120, dark_torance = 100;
 
 	speed = aeParams->convergence_speed;
-	//bright_torance = (unsigned int)(aeParams->target_luma + aeParams->luma_torance);
-	bright_torance = (unsigned int)(aeParams->target_luma + 2 * aeParams->luma_torance);
-	//dark_torance = (unsigned int)(aeParams->target_luma - aeParams->luma_torance);
-	dark_torance = (unsigned int)(aeParams->target_luma);
+	bright_torance = (unsigned int)(aeParams->target_luma + aeParams->luma_torance);
+	//bright_torance = (unsigned int)(aeParams->target_luma + 2 * aeParams->luma_torance);
+	dark_torance = (unsigned int)(aeParams->target_luma - aeParams->luma_torance);
+	//dark_torance = (unsigned int)(aeParams->target_luma);
 	//printf("%s: bright_thred = %d, dark_thred = %d\n", __func__, bright_torance, dark_torance);
 
 	if((aeCtrl->cur_luma >= aeParams->target_luma + 90) && aeCtrl->cur_luma <= 255)               //-14
@@ -200,9 +199,9 @@ int calc_exposure_step_size_slow(Ae_t *aeCtrl, Chromatix_ae_type *aeParams)
 		index = 3;
 	else if((aeCtrl->cur_luma <= aeParams->target_luma + 36) && (aeCtrl->cur_luma > aeParams->target_luma + 24))//-4
 		index = 4;
-	else if((aeCtrl->cur_luma <= aeParams->target_luma + 24) && (aeCtrl->cur_luma > aeParams->target_luma + 12))//-3
+	else if((aeCtrl->cur_luma <= aeParams->target_luma + 24) && (aeCtrl->cur_luma > aeParams->target_luma + 12))//-2
 		index = 5;
-	else if((aeCtrl->cur_luma <= aeParams->target_luma + 12) && (aeCtrl->cur_luma > bright_torance))//-2
+	else if((aeCtrl->cur_luma <= aeParams->target_luma + 12) && (aeCtrl->cur_luma > bright_torance))//-1
 		index = 6;
 	else if((aeCtrl->cur_luma <= bright_torance) && (aeCtrl->cur_luma >= dark_torance))//0
 		index = 7;
@@ -210,13 +209,13 @@ int calc_exposure_step_size_slow(Ae_t *aeCtrl, Chromatix_ae_type *aeParams)
 		index = 8;
 	else if((aeCtrl->cur_luma < aeParams->target_luma - 12) && (aeCtrl->cur_luma >= aeParams->target_luma - 24))//2
 		index = 9;
-	else if((aeCtrl->cur_luma < aeParams->target_luma - 24) && (aeCtrl->cur_luma >= aeParams->target_luma - 36))//4
+	else if((aeCtrl->cur_luma < aeParams->target_luma - 24) && (aeCtrl->cur_luma >= aeParams->target_luma - 42))//4
 		index = 10;
-	else if((aeCtrl->cur_luma < aeParams->target_luma - 36) && (aeCtrl->cur_luma >= aeParams->target_luma - 48))//7
+	else if((aeCtrl->cur_luma < aeParams->target_luma - 42) && (aeCtrl->cur_luma >= aeParams->target_luma - 64))//7
 		index = 11;
-	else if((aeCtrl->cur_luma < aeParams->target_luma - 48) && (aeCtrl->cur_luma >= aeParams->target_luma - 64))//9
+	else if((aeCtrl->cur_luma < aeParams->target_luma - 64) && (aeCtrl->cur_luma >= aeParams->target_luma - 80))//9
 		index = 12;
-	else if(aeCtrl->cur_luma < aeParams->target_luma - 64)//13
+	else if(aeCtrl->cur_luma < aeParams->target_luma - 80)//13
 		index = 13;
 
 	if(aeCtrl->last_exp_index <= 12)
@@ -285,7 +284,8 @@ void ae_process_simple(Ae_t * aeCtrl, Chromatix_ae_type *aeParams, int w, int h,
 	float real_gain = 1.0;
 
 	aeCtrl->last_luma = aeCtrl->cur_luma;
-	ae_calc_current_luma_center(aeCtrl, w, h, image);
+	//ae_calc_current_luma_center(aeCtrl, w, h, image);
+	ae_calc_current_luma_hist(aeCtrl, w, h, image);
 
 
 	if(aeCtrl->skip_frame) {
@@ -294,8 +294,8 @@ void ae_process_simple(Ae_t * aeCtrl, Chromatix_ae_type *aeParams, int w, int h,
 		return;
 	}
 
-	unsigned int bright_torance = (unsigned int)(aeParams->target_luma + 2 * aeParams->luma_torance);
-	unsigned int dark_torance = (unsigned int)(aeParams->target_luma);
+	unsigned int bright_torance = (unsigned int)(aeParams->target_luma + aeParams->luma_torance);
+	unsigned int dark_torance = (unsigned int)(aeParams->target_luma - aeParams->luma_torance);
 
 	if(((aeCtrl->cur_luma <= bright_torance) && (aeCtrl->cur_luma >= dark_torance)) ||
 		((aeCtrl->cur_luma < dark_torance) && (aeCtrl->last_exp_index >= exposure_table.valid_entries - 1)) ||
@@ -304,7 +304,7 @@ void ae_process_simple(Ae_t * aeCtrl, Chromatix_ae_type *aeParams, int w, int h,
 		aeCtrl->ae_settled = 1;
 		aeCtrl->skip_frame = 0;
 
-		//printf("cur_lum = %d, target_luma = %d, ae_settled = %d\n", aeCtrl->cur_luma, aeParams->target_luma, aeCtrl->ae_settled);
+		printf("cur_lum = %d, target_luma = %d, ae_settled = %d\n", aeCtrl->cur_luma, aeParams->target_luma, aeCtrl->ae_settled);
 		return;
 	}
 
@@ -334,8 +334,8 @@ void ae_process_simple(Ae_t * aeCtrl, Chromatix_ae_type *aeParams, int w, int h,
 
 	aeCtrl->skip_frame = 2;
 
-	//printf("cur_lum = %d, target_luma = %d, step_index = %d, cur_index = %d, cur_line = %d, cur_gain = %d, ae_settled = %d\n",
-		//aeCtrl->cur_luma, aeParams->target_luma, exp_step_size, aeCtrl->cur_exp_index, aeCtrl->cur_linecnt, aeCtrl->cur_gain, aeCtrl->ae_settled);
+	printf("cur_lum = %d, target_luma = %d, step_index = %d, cur_index = %d, cur_line = %d, cur_gain = %d, ae_settled = %d\n",
+		aeCtrl->cur_luma, aeParams->target_luma, exp_step_size, aeCtrl->cur_exp_index, aeCtrl->cur_linecnt, aeCtrl->cur_gain, aeCtrl->ae_settled);
 
 	return;
 }

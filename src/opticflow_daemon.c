@@ -116,8 +116,8 @@ int main()
 
 		//will check optical flow process each 3s
 		 //
-		 while(sleep_counter < 30)
-	 	 {
+		 while(sleep_counter < 300)
+	 	{
 	 		if(shared->wait_pic_renew > 50)
  			{
  				shared->wait_pic_renew = 0;
@@ -146,7 +146,7 @@ int main()
 				usleep(100000);
  			}
 			sleep_counter++;
-			usleep(100000);
+			usleep(10000);
 	 	 }
 		 sleep_counter = 0;
 	}

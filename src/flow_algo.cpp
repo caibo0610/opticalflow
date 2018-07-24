@@ -269,13 +269,7 @@ int shiTomasiFeaturesToTrack(InputArray _image, OutputArray _corners,
     //if( useHarrisDetector )
         //cornerHarris( image, eig, blockSize, gradientSize, harrisK);
     //else
-    //struct timeval t1, t2, t3, t4;
-	//gettimeofday(&t1, NULL);
     cornerMinEigenVal( image, eig, blockSize, gradientSize);//compute Mat M's eig value
-	//gettimeofday(&t2, NULL);
-	//ERROR("chenyijun:%s:cornerMinEigenVal cost time: %ld\n", 
-		//__func__, 
-		//1000000 * (t2.tv_sec - t1.tv_sec) + (t2.tv_usec - t1.tv_usec));
 
     double maxVal = 0;
     minMaxLoc( eig, 0, &maxVal, 0, 0, _mask);
@@ -310,10 +304,6 @@ int shiTomasiFeaturesToTrack(InputArray _image, OutputArray _corners,
                 tmpCorners.push_back(eig_data + x);
         }
     }
-	//gettimeofday(&t3, NULL);
-	//ERROR("chenyijun:%s:select eig value cost time: %ld, eig value max:%d\n", 
-		//__func__, 
-		//1000000 * (t3.tv_sec - t2.tv_sec) + (t3.tv_usec - t2.tv_usec), maxeig);
 
     std::vector<Point2f> corners;
     size_t i, j, total = tmpCorners.size(), ncorners = 0;
@@ -414,10 +404,6 @@ int shiTomasiFeaturesToTrack(InputArray _image, OutputArray _corners,
                 break;
         }
     }
-	//gettimeofday(&t4, NULL);
-	//ERROR("chenyijun:%s:select shi-tomasi corners cost time: %ld\n", 
-		//__func__, 
-		//1000000 * (t4.tv_sec - t3.tv_sec) + (t4.tv_usec - t3.tv_usec));
 
     Mat(corners).convertTo(_corners, _corners.fixedType() ? _corners.type() : CV_32F);
 	return maxeig;
@@ -438,29 +424,29 @@ int shiTomasiFeaturesToTrack(InputArray _image, OutputArray _corners,
 
 void compute_flow_opencv(Mat pre_img, Mat cur_img, ParamA* _PA, ParamB* _PB)
 {
-	struct timeval t1, t2, t3, t4;
+	//struct timeval t1, t2, t3, t4;
 	vector<Point2f> features_after, features;
 	vector<uchar> status;
 	vector<float> err;
 	Size winSize = Size(11, 11);
 	int maxLevel = 2;
-	int goodPoints = 0;
+	//int goodPoints = 0;
 
-	gettimeofday(&t1, NULL);
+	//gettimeofday(&t1, NULL);
     _PB->maxeig = shiTomasiFeaturesToTrack(pre_img, features, _PA->maxCorners, _PA->th, _PA->minDist, Mat(), 3, 3);
     //goodFeaturesToTrack(pre_img, features, _PA->maxCorners, _PA->th, _PA->minDist, Mat(), 3, 3);
-	gettimeofday(&t2, NULL);
-	ERROR("chenyijun:%s:goodFeaturesToTrack cost time = %ld us, points num = %d, maxeig = %d\n", 
-		__func__, 
-		1000000 * (t2.tv_sec - t1.tv_sec) + (t2.tv_usec - t1.tv_usec), features.size(), _PB->maxeig);
+	//gettimeofday(&t2, NULL);
+	//ERROR("chenyijun:%s:goodFeaturesToTrack cost time = %ld us, points num = %d, maxeig = %d\n", 
+		//__func__, 
+		//1000000 * (t2.tv_sec - t1.tv_sec) + (t2.tv_usec - t1.tv_usec), features.size(), _PB->maxeig);
 
 	if(features.size() > 0) {
-		gettimeofday(&t3, NULL);
+		//gettimeofday(&t3, NULL);
 		calcOpticalFlowPyrLK(pre_img, cur_img, features, features_after, status, err, winSize, maxLevel);
-		gettimeofday(&t4, NULL);
-		ERROR("chenyijun:%s:calcOpticalFlowPyrLK cost time = %ld us\n", 
-			__func__, 
-			1000000 * (t4.tv_sec - t3.tv_sec) + (t4.tv_usec - t3.tv_usec));
+		//gettimeofday(&t4, NULL);
+		//ERROR("chenyijun:%s:calcOpticalFlowPyrLK cost time = %ld us\n", 
+			//__func__, 
+			//1000000 * (t4.tv_sec - t3.tv_sec) + (t4.tv_usec - t3.tv_usec));
 
 		*(_PB->nump) = features.size();
     	for (int i=0;i<(*(_PB->nump));i++)
@@ -475,15 +461,15 @@ void compute_flow_opencv(Mat pre_img, Mat cur_img, ParamA* _PA, ParamB* _PB)
 			} else {
 				_PB->status[i]=0;
 				//status[i] = 0;
-				ERROR("chenyijun:%s: unconfident tracked points, x_dis = %f pixel, y_dis = %f pixel\n", 
-				__func__,
-				features_after[i].x - features[i].x, features_after[i].y - features[i].y);
+				//ERROR("chenyijun:%s: unconfident tracked points, x_dis = %f pixel, y_dis = %f pixel\n", 
+				//__func__,
+				//features_after[i].x - features[i].x, features_after[i].y - features[i].y);
 			}
-			if(_PB->status[i] == 1)
-				goodPoints++;
+			//if(_PB->status[i] == 1)
+				//goodPoints++;
     	}
 
-		ERROR("chenyijun:%s:before filter, correctly tracked points num = %d\n", __func__, goodPoints);
+		//ERROR("chenyijun:%s:before filter, correctly tracked points num = %d\n", __func__, goodPoints);
 		//GetRightPoint1(_PB, features, features_after, status);
 		//ERROR("chenyijun:%s:nframe = %d, after filter, select points num = %d\n", __func__, _PB->nframe, *(_PB->nump));
 	}else {

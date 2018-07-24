@@ -23,14 +23,6 @@
 #define REL_DATE       "20171103"
 
 #define TRACK_PRINT
-/*
-#define XFREE(x) ({\
-	if(x != NULL) {\
-		free(x);\
-		x = NULL;\
-	}\
-})
-*/
 
 typedef struct OF_params
 {

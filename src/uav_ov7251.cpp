@@ -497,9 +497,7 @@ void *init_func(void *p)
 		unsigned int old_frame = 0;
 
         send_data_to_CE = 1;  //libo 20180420
-		if(flow_buffer == NULL) {
-			flow_buffer = (struct Flow_buffer *)malloc(sizeof(struct Flow_buffer));
-		}
+
 		unsigned char sendData[flowBufferSize + 4] = " ";
 		while(1) {
     		while(old_frame == flow_buffer->nframe) {
@@ -791,7 +789,7 @@ int CameraTest::run()
 	   	processOpticalFlow();
 		gettimeofday(&tt2,NULL);
 		cost_time = 1000000 * (tt2.tv_sec - tt1.tv_sec) + (tt2.tv_usec - tt1.tv_usec);
-		ERROR("chenyijun:processOpticalFlow cost time = %ld us\n", cost_time);
+		//ERROR("chenyijun:processOpticalFlow cost time = %ld us\n", cost_time);
 		/*
 		if(!ae_ctrl.ae_settled) {
 			char str[32];
@@ -852,11 +850,12 @@ int CameraTest::run()
             params_.commit();
             exposure_set_flag = 0;
         }	
-
+//#ifdef OPENCV_FLOW
 		if(cost_time < 8000)
 			usleep(10000);
 		else if(cost_time < 12000)
 			usleep(5000);
+//#endif
     }
 
     pthread_mutex_destroy(&mutex);
